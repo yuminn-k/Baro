@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pod-cpu-saturation
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: k8s-monitoring-lab
+      rules:
+        - alert: PodCpuSaturation
+          expr: |
+            sum by (namespace, pod) (
+              rate(container_cpu_usage_seconds_total{namespace="demo", container="workload", image!=""}[1m])
+            )
+            /
+            sum by (namespace, pod) (
+              kube_pod_container_resource_limits{namespace="demo", container="workload", resource="cpu", unit="core"}
+            ) > 0.8
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: Pod CPU usage exceeds 80 percent of its limit
+            description: '{{ $labels.namespace }}/{{ $labels.pod }} has exceeded 80 percent of its CPU limit for more than two minutes.'

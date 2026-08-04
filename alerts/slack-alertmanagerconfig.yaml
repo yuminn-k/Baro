@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: slack-notifications
+  namespace: monitoring
+  labels:
+    alertmanagerConfig: monitoring
+spec:
+  route:
+    receiver: slack
+    matchers:
+      - name: severity
+        value: warning
+        matchType: =
+  receivers:
+    - name: slack
+      slackConfigs:
+        - apiURL:
+            name: slack-webhook-url
+            key: url
+          channel: '#k8s-monitoring-lab'
+          sendResolved: true
+          title: '{{ .CommonLabels.alertname }}'
+          text: '{{ .CommonAnnotations.description }}'

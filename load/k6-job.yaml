@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cpu-load-script
+  namespace: demo
+data:
+  cpu-saturation.js: |
+    import http from 'k6/http';
+    import { check } from 'k6';
+
+    export const options = {
+      vus: 60,
+      duration: '4m',
+    };
+
+    export default function () {
+      const response = http.get('http://cpu-workload.demo.svc.cluster.local:8080/cpu-work?duration_ms=200', { timeout: '30s' });
+      check(response, { 'work completed': (result) => result.status === 200 });
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cpu-load
+  namespace: demo
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: k6
+          image: grafana/k6:0.57.0
+          args: [run, /scripts/cpu-saturation.js]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: script
+          configMap:
+            name: cpu-load-script

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-monitoring-lab-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  k8s-monitoring-lab.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "panels": [
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []}, "gridPos": {"h": 9, "w": 12, "x": 0, "y": 0}, "id": 1, "targets": [{"expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"demo\", container=\"workload\", image!=\"\"}[1m])) / sum by (pod) (kube_pod_container_resource_limits{namespace=\"demo\", container=\"workload\", resource=\"cpu\", unit=\"core\"})", "legendFormat": "{{pod}}"}], "title": "CPU usage / limit by pod", "type": "timeseries"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "fieldConfig": {"defaults": {}, "overrides": []}, "gridPos": {"h": 9, "w": 12, "x": 12, "y": 0}, "id": 2, "targets": [{"expr": "sum(cpu_work_requests_total{namespace=\"demo\"})", "legendFormat": "requests"}], "title": "CPU work requests", "type": "timeseries"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "fieldConfig": {"defaults": {}, "overrides": []}, "gridPos": {"h": 9, "w": 24, "x": 0, "y": 9}, "id": 3, "targets": [{"expr": "ALERTS{alertname=\"PodCpuSaturation\", namespace=\"demo\"}", "legendFormat": "{{alertstate}} {{pod}}"}], "title": "PodCpuSaturation alert state", "type": "timeseries"}
+      ],
+      "schemaVersion": 39,
+      "tags": ["kubernetes", "monitoring"],
+      "title": "Kubernetes Monitoring Lab",
+      "uid": "k8s-monitoring-lab",
+      "version": 1
+    }

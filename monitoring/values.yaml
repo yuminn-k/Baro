@@ -1,0 +1,67 @@
+grafana:
+  adminUser: admin
+  grafana.ini:
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+alertmanager:
+  alertmanagerSpec:
+    externalUrl: http://localhost:19093
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    alertmanagerConfigSelector:
+      matchLabels:
+        alertmanagerConfig: monitoring
+  config:
+    global:
+      resolve_timeout: 2m
+    route:
+      receiver: local-webhook
+      group_by: [alertname, namespace, pod]
+      group_wait: 10s
+      group_interval: 30s
+      repeat_interval: 2m
+    receivers:
+      - name: local-webhook
+        webhook_configs:
+          - url: http://alert-receiver.alerting.svc.cluster.local:8080/alerts
+            send_resolved: true
+      - name: "null"
+
+prometheus:
+  prometheusSpec:
+    retention: 24h
+    maximumStartupDurationSeconds: 900
+    resources:
+      requests:
+        cpu: 300m
+        memory: 512Mi
+      limits:
+        cpu: 750m
+        memory: 1Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 2Gi

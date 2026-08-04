@@ -1,0 +1,16 @@
+# Local tool state and logs can contain command output or secrets.
+.omx/
+.codegraph
+.debug-journal.md
+
+# Local environment files and credentials.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editor and operating-system metadata.
+.DS_Store
+.idea/
+.vscode/
