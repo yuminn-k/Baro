@@ -6,7 +6,7 @@ KUBECTL := kubectl --context $(CONTEXT)
 HELM := helm
 NERDCTL := nerdctl --namespace k8s.io
 
-.PHONY: preflight test build-image monitoring-up app-up deploy load verify-alert dashboard alertmanager enable-slack teardown
+.PHONY: preflight test build-image monitoring-up app-up deploy load verify-alert dashboard alertmanager enable-slack teardown benchmark-secrets benchmark-up benchmark-deploy benchmark-run benchmark-verify benchmark-dashboard benchmark-down
 
 preflight:
 	@$(KUBECTL) get nodes
@@ -57,3 +57,46 @@ enable-slack:
 teardown:
 	@$(KUBECTL) delete namespace demo alerting --ignore-not-found
 	@$(HELM) uninstall monitoring --namespace monitoring || true
+
+benchmark-secrets:
+	@if $(KUBECTL) --namespace kafka-benchmark get secret postgres-auth >/dev/null 2>&1; then exit 0; fi; \
+	benchmark_password=$$(openssl rand -hex 24); \
+	$(KUBECTL) --namespace kafka-benchmark create secret generic postgres-auth \
+		--from-literal=password="$$benchmark_password" \
+		--from-literal=url="postgres://benchmark:$$benchmark_password@postgres.kafka-benchmark.svc.cluster.local:5432/benchmark?sslmode=disable" \
+		--dry-run=client -o yaml | $(KUBECTL) apply -f -
+
+benchmark-up: monitoring-up
+	@$(KUBECTL) apply -f k8s/kafka-benchmark.yaml
+	@$(MAKE) benchmark-secrets
+	@$(KUBECTL) --namespace kafka-benchmark rollout status statefulset/kafka --timeout=5m
+	@$(KUBECTL) --namespace kafka-benchmark rollout status statefulset/postgres --timeout=5m
+	@$(KUBECTL) --namespace kafka-benchmark wait --for=condition=complete job/kafka-topic --timeout=5m
+	@$(KUBECTL) --namespace kafka-benchmark rollout status deployment/ingest --timeout=3m
+	@$(KUBECTL) --namespace kafka-benchmark rollout status deployment/consumer --timeout=3m
+	@$(KUBECTL) apply -f dashboards/kafka-benchmark-configmap.yaml
+
+benchmark-deploy: preflight test build-image benchmark-up
+	@$(KUBECTL) --namespace kafka-benchmark rollout restart deployment/ingest deployment/consumer
+	@$(KUBECTL) --namespace kafka-benchmark rollout status deployment/ingest --timeout=3m
+	@$(KUBECTL) --namespace kafka-benchmark rollout status deployment/consumer --timeout=3m
+
+benchmark-run:
+	@$(KUBECTL) --namespace kafka-benchmark delete job benchmark-reset kafka-benchmark-load --ignore-not-found
+	@$(KUBECTL) apply -f k8s/benchmark-reset-job.yaml
+	@$(KUBECTL) --namespace kafka-benchmark wait --for=condition=complete job/benchmark-reset --timeout=2m
+	@$(KUBECTL) apply -f load/k6-benchmark-job.yaml
+	@$(KUBECTL) --namespace kafka-benchmark wait --for=condition=complete job/kafka-benchmark-load --timeout=11m
+
+benchmark-verify:
+	@$(KUBECTL) --namespace kafka-benchmark delete job benchmark-verify --ignore-not-found
+	@$(KUBECTL) apply -f k8s/benchmark-verify-job.yaml
+	@$(KUBECTL) --namespace kafka-benchmark wait --for=condition=complete job/benchmark-verify --timeout=12m
+	@$(KUBECTL) --namespace kafka-benchmark exec statefulset/kafka -- /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka.kafka-benchmark.svc.cluster.local:9092 --describe --group benchmark-consumers | awk 'NR > 1 && $$6 != "-" { lag += $$6 } END { exit (lag == 0 ? 0 : 1) }'
+	@echo 'Kafka consumer lag is zero and PostgreSQL contains exactly 1,000,000 unique events.'
+
+benchmark-dashboard:
+	@echo 'Grafana: kubectl --context $(CONTEXT) --namespace monitoring port-forward svc/monitoring-grafana 3000:80'
+
+benchmark-down:
+	@$(KUBECTL) delete namespace kafka-benchmark --ignore-not-found

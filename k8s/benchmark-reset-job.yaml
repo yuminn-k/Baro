@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: benchmark-reset
+  namespace: kafka-benchmark
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: reset
+          image: postgres:17.10-trixie
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-auth
+                  key: password
+          command:
+            - psql
+            - -h
+            - postgres.kafka-benchmark.svc.cluster.local
+            - -U
+            - benchmark
+            - -d
+            - benchmark
+            - -c
+            - TRUNCATE benchmark_events;

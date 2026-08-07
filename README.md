@@ -79,6 +79,26 @@ make alertmanager
 
 이 port-forward는 `localhost:19093`을 열고, Alertmanager가 새 Slack 알림에 생성하는 URL과 일치합니다. 이미 발송된 Slack 메시지의 내부 DNS 링크는 바뀌지 않으므로 새 알림에서 확인해야 합니다.
 
+## Kafka MSA 100만 건 벤치마크
+
+기존 CPU 알림 실습과 분리된 `kafka-benchmark` namespace에서 다음 흐름을 실행합니다.
+
+```text
+k6 (1,000,000 events) -> ingest API -> Kafka -> consumer x3 -> PostgreSQL
+```
+
+```sh
+make benchmark-deploy
+make benchmark-run
+make benchmark-verify
+```
+
+`make benchmark-deploy`는 새 Rancher Desktop 클러스터에서도 monitoring Helm release를 먼저 설치하고, 로컬 `k8s-monitoring-lab:dev` 이미지를 다시 빌드한 뒤 ingest/consumer Deployment를 명시적으로 재시작합니다. 따라서 같은 이미지 태그를 사용하더라도 소스 수정 후 재실행하면 새 바이너리로 교체됩니다.
+
+`benchmark-run`은 100개의 VU가 정확히 1,000,000개의 고유 `event_id`를 최대 10분 동안 전송합니다. `benchmark-verify`는 PostgreSQL의 행 수·고유 ID·ID 범위와 Kafka consumer group lag 0을 확인합니다. Grafana에서는 **Kafka MSA Benchmark** 대시보드에서 producer acknowledgement, p95 E2E 지연, DB 멱등 저장, consumer lag를 확인합니다.
+
+로컬 환경은 단일 Rancher Desktop 노드, 단일 KRaft Kafka broker, 단일 PostgreSQL PVC입니다. 따라서 Kafka API, consumer group, 재시도와 멱등 sink의 동작을 검증하는 용도이며, AWS MSK의 멀티 AZ 복제나 EKS 노드 자동 확장·RDS Multi-AZ 장애 내성을 증명하지는 않습니다.
+
 ## 명령 참조
 
 | 명령 | 목적 |
@@ -92,6 +112,11 @@ make alertmanager
 | `make alertmanager` | Alertmanager의 `localhost:19093` port-forward 실행 |
 | `make enable-slack` | 환경 변수의 Webhook URL로 Slack 설정 적용 |
 | `make teardown` | 이 실습이 생성한 namespace와 Helm release 제거 |
+| `make benchmark-deploy` | Kafka, PostgreSQL, ingest/consumer와 대시보드 배포 |
+| `make benchmark-run` | 100만 건 k6 E2E 부하 실행 |
+| `make benchmark-verify` | DB 정확성 및 consumer lag 검증 |
+| `make benchmark-dashboard` | Kafka 대시보드 Grafana port-forward 명령 출력 |
+| `make benchmark-down` | `kafka-benchmark` namespace만 삭제 |
 
 ## 정리
 
