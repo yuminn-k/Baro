@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-benchmark-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  kafka-benchmark.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "panels": [
+        {"datasource":{"type":"prometheus","uid":"prometheus"},"fieldConfig":{"defaults":{"decimals":0,"unit":"short"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":0,"y":0},"id":1,"options":{"legend":{"calcs":["lastNotNull"],"displayMode":"table","placement":"bottom","showLegend":true}},"targets":[{"expr":"sum(benchmark_producer_accepted_total{namespace=\"kafka-benchmark\"})","legendFormat":"acknowledged"},{"expr":"sum(benchmark_producer_publish_failed_total{namespace=\"kafka-benchmark\"})","legendFormat":"failed"}],"title":"Kafka producer acknowledgements","type":"timeseries"},
+        {"datasource":{"type":"prometheus","uid":"prometheus"},"fieldConfig":{"defaults":{"unit":"s"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":12,"y":0},"id":2,"targets":[{"expr":"histogram_quantile(0.95, sum by (le) (rate(benchmark_event_end_to_end_seconds_bucket{namespace=\"kafka-benchmark\"}[1m])))","legendFormat":"p95"}],"title":"End-to-end latency p95","type":"timeseries"},
+        {"datasource":{"type":"prometheus","uid":"prometheus"},"fieldConfig":{"defaults":{"decimals":0,"unit":"short"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":0,"y":8},"id":3,"options":{"legend":{"calcs":["lastNotNull"],"displayMode":"table","placement":"bottom","showLegend":true}},"targets":[{"expr":"sum(benchmark_consumer_inserted_total{namespace=\"kafka-benchmark\"})","legendFormat":"inserted"},{"expr":"sum(benchmark_consumer_conflicts_total{namespace=\"kafka-benchmark\"})","legendFormat":"conflicts"}],"title":"PostgreSQL idempotent writes","type":"timeseries"},
+        {"datasource":{"type":"prometheus","uid":"prometheus"},"fieldConfig":{"defaults":{"decimals":0,"unit":"short"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":12,"y":8},"id":4,"options":{"legend":{"calcs":["lastNotNull"],"displayMode":"table","placement":"bottom","showLegend":true}},"targets":[{"expr":"sum(benchmark_consumer_lag{namespace=\"kafka-benchmark\"})","legendFormat":"lag"}],"title":"Kafka consumer lag","type":"timeseries"}
+      ],
+      "schemaVersion":39,
+      "tags":["kafka","benchmark"],
+      "time":{"from":"now-15m","to":"now"},
+      "title":"Kafka MSA Benchmark",
+      "uid":"kafka-msa-benchmark",
+      "version":2
+    }

@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: benchmark-verify
+  namespace: kafka-benchmark
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: verify
+          image: postgres:17.10-trixie
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-auth
+                  key: password
+          command: [sh, -ec]
+          args:
+            - |
+              for attempt in $$(seq 1 120); do
+                result=$$(psql -h postgres.kafka-benchmark.svc.cluster.local -U benchmark -d benchmark -tAc 'SELECT count(*), count(DISTINCT event_id), min(event_id), max(event_id) FROM benchmark_events')
+                if [ "$$result" = "1000000|1000000|0|999999" ]; then
+                  exit 0
+                fi
+                sleep 5
+              done
+              echo "benchmark verification timed out" >&2
+              exit 1

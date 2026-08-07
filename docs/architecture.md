@@ -78,3 +78,11 @@ sum by (namespace, pod) (
 Rancher Desktop의 클러스터 Service DNS는 호스트 브라우저에서 해석되지 않습니다. 따라서 Alertmanager의 `externalUrl`은 `http://localhost:19093`으로 설정했고, `make alertmanager`가 같은 주소의 port-forward를 유지합니다. 이 명령이 실행 중일 때 Slack 메시지의 Alertmanager 링크를 열 수 있습니다.
 
 Grafana도 ClusterIP Service이므로 `make dashboard`가 출력하는 port-forward 명령을 별도 터미널에서 실행합니다.
+
+## Kafka MSA 벤치마크
+
+`kafka-benchmark` namespace는 기존 `demo`, `alerting`, `monitoring`과 격리됩니다. k6는 `POST /events`로 `event_id`, 제출 시각, 256-byte payload를 전송합니다. ingest는 Kafka acknowledgement 후에만 202를 반환하고, consumer group의 각 replica는 PostgreSQL `INSERT ... ON CONFLICT DO NOTHING` 성공 뒤에만 Kafka offset을 commit합니다.
+
+`benchmark_events.event_id`는 기본 키이므로 전달 중복은 conflict metric으로 관찰되지만 저장 행은 하나로 유지됩니다. producer accepted/failed, consumer inserted/conflict/lag, E2E 지연은 ServiceMonitor를 통해 Prometheus에 수집합니다.
+
+단일 노드 용량에 맞춰 KRaft broker 1개와 replication factor/min ISR 1을 사용합니다. AWS 배포 시 이 부분은 MSK Provisioned 다중 AZ broker, EKS 다중 노드, RDS Multi-AZ로 대체해야 합니다.

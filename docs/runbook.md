@@ -88,6 +88,18 @@ kubectl --context rancher-desktop get events -n monitoring --sort-by=.lastTimest
 
 이 프로젝트는 Prometheus CRD의 최소값 제약을 충족하도록 `maximumStartupDurationSeconds: 900`을 설정합니다. Alertmanager 기본 route의 `null` receiver도 `monitoring/values.yaml`에 유지해야 합니다.
 
+## Kafka 벤치마크가 10분 내 완료되지 않는다
+
+`make benchmark-run`의 k6 Job 로그에서 완료 iteration, HTTP 실패율, threshold 결과를 확인합니다. 그다음 `make benchmark-verify`로 PostgreSQL의 정확한 100만 고유 행과 consumer lag를 검사합니다. 기준 시간 초과는 로컬 4 vCPU/단일 노드 환경의 측정 결과이며, iteration 수나 10분 기준을 낮춰 통과로 처리하지 않습니다.
+
+consumer 재시작 횟수와 Kafka·PostgreSQL Pod 상태는 다음 명령으로 확인합니다.
+
+```sh
+kubectl --context rancher-desktop -n kafka-benchmark get pods
+kubectl --context rancher-desktop -n kafka-benchmark logs deployment/consumer --tail=100
+kubectl --context rancher-desktop -n kafka-benchmark logs job/kafka-benchmark-load --tail=100
+```
+
 ## 정리와 재배포
 
 ```sh
