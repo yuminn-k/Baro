@@ -1,0 +1,67 @@
+{
+  "version": "1.0.0",
+  "title": "Kafka benchmark continues when one consumer Pod is terminated",
+  "description": "While the benchmark load is active, the consumer Deployment must restore all three available replicas without touching the single-replica Kafka or PostgreSQL StatefulSets.",
+  "tags": ["kubernetes", "kafka-benchmark", "consumer", "pod-termination"],
+  "secrets": {
+    "k8s": {
+      "KUBERNETES_CONTEXT": "rancher-desktop"
+    }
+  },
+  "steady-state-hypothesis": {
+    "title": "ingest and consumer Deployments are healthy",
+    "probes": [
+      {
+        "type": "probe",
+        "name": "ingest-deployment-is-available",
+        "tolerance": true,
+        "secrets": ["k8s"],
+        "provider": {
+          "type": "python",
+          "module": "chaosk8s.deployment.probes",
+          "func": "deployment_available_and_healthy",
+          "arguments": {
+            "name": "ingest",
+            "ns": "kafka-benchmark"
+          }
+        }
+      },
+      {
+        "type": "probe",
+        "name": "consumer-deployment-is-available",
+        "tolerance": true,
+        "secrets": ["k8s"],
+        "provider": {
+          "type": "python",
+          "module": "chaosk8s.deployment.probes",
+          "func": "deployment_available_and_healthy",
+          "arguments": {
+            "name": "consumer",
+            "ns": "kafka-benchmark"
+          }
+        }
+      }
+    ]
+  },
+  "method": [
+    {
+      "type": "action",
+      "name": "terminate-one-consumer-pod",
+      "secrets": ["k8s"],
+      "provider": {
+        "type": "python",
+        "module": "chaosk8s.pod.actions",
+        "func": "terminate_pods",
+        "arguments": {
+          "ns": "kafka-benchmark",
+          "label_selector": "app.kubernetes.io/name=consumer",
+          "rand": true,
+          "qty": 1
+        }
+      },
+      "pauses": {
+        "after": 30
+      }
+    }
+  ]
+}

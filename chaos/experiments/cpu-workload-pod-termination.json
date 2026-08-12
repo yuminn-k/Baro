@@ -1,0 +1,52 @@
+{
+  "version": "1.0.0",
+  "title": "cpu-workload remains available when one Pod is terminated",
+  "description": "The demo Deployment must restore all six available replicas after Chaos Toolkit terminates one selected workload Pod.",
+  "tags": ["kubernetes", "demo", "pod-termination"],
+  "secrets": {
+    "k8s": {
+      "KUBERNETES_CONTEXT": "rancher-desktop"
+    }
+  },
+  "steady-state-hypothesis": {
+    "title": "cpu-workload has all six available replicas",
+    "probes": [
+      {
+        "type": "probe",
+        "name": "cpu-workload-deployment-is-available",
+        "tolerance": true,
+        "secrets": ["k8s"],
+        "provider": {
+          "type": "python",
+          "module": "chaosk8s.deployment.probes",
+          "func": "deployment_available_and_healthy",
+          "arguments": {
+            "name": "cpu-workload",
+            "ns": "demo"
+          }
+        }
+      }
+    ]
+  },
+  "method": [
+    {
+      "type": "action",
+      "name": "terminate-one-cpu-workload-pod",
+      "secrets": ["k8s"],
+      "provider": {
+        "type": "python",
+        "module": "chaosk8s.pod.actions",
+        "func": "terminate_pods",
+        "arguments": {
+          "ns": "demo",
+          "label_selector": "app.kubernetes.io/name=cpu-workload",
+          "rand": true,
+          "qty": 1
+        }
+      },
+      "pauses": {
+        "after": 30
+      }
+    }
+  ]
+}

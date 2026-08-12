@@ -1,0 +1,2 @@
+chaostoolkit==1.19.0
+chaostoolkit-kubernetes==0.39.0

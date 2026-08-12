@@ -10,6 +10,11 @@
 *.pem
 *.key
 
+# Host-local Chaos Toolkit environments and execution journals.
+chaos/.venv/
+chaos/reports/
+chaostoolkit.log
+
 # Editor and operating-system metadata.
 .DS_Store
 .idea/
