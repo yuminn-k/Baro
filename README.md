@@ -99,6 +99,40 @@ make benchmark-verify
 
 로컬 환경은 단일 Rancher Desktop 노드, 단일 KRaft Kafka broker, 단일 PostgreSQL PVC입니다. 따라서 Kafka API, consumer group, 재시도와 멱등 sink의 동작을 검증하는 용도이며, AWS MSK의 멀티 AZ 복제나 EKS 노드 자동 확장·RDS Multi-AZ 장애 내성을 증명하지는 않습니다.
 
+## Chaos Toolkit 복원력 실험
+
+Chaos Toolkit은 호스트의 `chaos/.venv`에서 실행하며, 실험 정의는 `rancher-desktop` Kubernetes context만 사용합니다. Chaos Make target은 `CONTEXT`가 다른 값이면 Kubernetes Job을 만들기 전에 실패하므로, 부하 생성과 장애 주입이 서로 다른 클러스터로 향하지 않습니다. 실행 Journal은 `chaos/reports/`에 남지만 Git에는 포함되지 않습니다.
+
+```sh
+make chaos-setup
+make chaos-validate
+```
+
+### demo workload Pod 종료
+
+```sh
+make deploy
+make chaos-demo
+```
+
+이 실험은 `demo` namespace의 `cpu-workload` Pod 하나만 무작위로 종료합니다. Chaos Toolkit은 실행 전후 모두 Deployment가 6개 available replica인지 확인합니다. 성공 Journal은 `completed` 상태이며, Kubernetes Deployment controller가 새 Pod를 만들어 `6/6` Ready가 되어야 합니다.
+
+### Kafka consumer Pod 종료
+
+```sh
+make benchmark-deploy
+make chaos-kafka-consumer
+```
+
+이 명령은 100만 건 k6 부하를 시작한 뒤 active 상태를 확인하고, `kafka-benchmark` namespace의 consumer Pod 하나만 종료합니다. 실험 후에는 consumer가 `3/3`으로 복구되고 k6 threshold가 통과하며, `benchmark-verify`가 Kafka consumer lag `0`과 PostgreSQL의 정확히 100만 고유 행을 확인해야 성공입니다.
+
+두 실험은 `monitoring` namespace, 기존 클러스터 워크로드, 그리고 단일 복제본인 Kafka/PostgreSQL StatefulSet을 대상으로 하지 않습니다. 실행을 중단한 경우에도 Pod controller가 자동 복구하므로 대상 Deployment의 rollout 상태를 먼저 확인합니다.
+
+```sh
+kubectl --context rancher-desktop -n demo rollout status deployment/cpu-workload --timeout=3m
+kubectl --context rancher-desktop -n kafka-benchmark rollout status deployment/consumer --timeout=3m
+```
+
 ## 명령 참조
 
 | 명령 | 목적 |
@@ -117,6 +151,10 @@ make benchmark-verify
 | `make benchmark-verify` | DB 정확성 및 consumer lag 검증 |
 | `make benchmark-dashboard` | Kafka 대시보드 Grafana port-forward 명령 출력 |
 | `make benchmark-down` | `kafka-benchmark` namespace만 삭제 |
+| `make chaos-setup` | 호스트 Python 가상환경에 고정된 Chaos Toolkit 설치 |
+| `make chaos-validate` | Chaos Toolkit으로 모든 실험 정의 검증 |
+| `make chaos-demo` | cpu-workload Pod 1개 종료 및 6/6 복구 검증 |
+| `make chaos-kafka-consumer` | k6 처리 중 consumer Pod 1개 종료, 복구·lag·DB 정합성 검증 |
 
 ## 정리
 
