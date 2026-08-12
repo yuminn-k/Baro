@@ -2,37 +2,14 @@
   "annotations": {"list": []},
   "editable": true,
   "panels": [
-    {
-      "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
-      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 0},
-      "id": 1,
-      "targets": [{"expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"demo\", container=\"workload\", image!=\"\"}[1m])) / sum by (pod) (kube_pod_container_resource_limits{namespace=\"demo\", container=\"workload\", resource=\"cpu\", unit=\"core\"})", "legendFormat": "{{pod}}"}],
-      "title": "CPU usage / limit by pod",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "fieldConfig": {"defaults": {}, "overrides": []},
-      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 0},
-      "id": 2,
-      "targets": [{"expr": "sum(cpu_work_requests_total{namespace=\"demo\"})", "legendFormat": "requests"}],
-      "title": "CPU work requests",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "fieldConfig": {"defaults": {}, "overrides": []},
-      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 9},
-      "id": 3,
-      "targets": [{"expr": "ALERTS{alertname=\"PodCpuSaturation\", namespace=\"demo\"}", "legendFormat": "{{alertstate}} {{pod}}"}],
-      "title": "PodCpuSaturation alert state",
-      "type": "timeseries"
-    }
+    {"datasource": {"type": "prometheus", "uid": "prometheus"}, "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}, "gridPos": {"h": 11, "w": 6, "x": 0, "y": 0}, "id": 1, "targets": [{"expr": "sum(rate(cpu_work_requests_total{namespace=\"demo\", outcome=\"completed\"}[$__rate_interval]))", "legendFormat": "completed"}], "title": "Traffic", "type": "timeseries"},
+    {"datasource": {"type": "prometheus", "uid": "prometheus"}, "fieldConfig": {"defaults": {"max": 1, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.8}]}, "thresholdsStyle": {"mode": "area+line"}, "unit": "percentunit"}, "overrides": []}, "gridPos": {"h": 11, "w": 6, "x": 6, "y": 0}, "id": 2, "targets": [{"expr": "max(sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"demo\", container=\"workload\", image!=\"\"}[$__rate_interval])) / sum by (pod) (kube_pod_container_resource_limits{namespace=\"demo\", container=\"workload\", resource=\"cpu\", unit=\"core\"}))", "legendFormat": "max pod usage"}, {"expr": "vector(0.8)", "legendFormat": "alert target 80%"}], "title": "CPU saturation 80%", "type": "timeseries"},
+    {"datasource": {"type": "prometheus", "uid": "prometheus"}, "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}, "gridPos": {"h": 11, "w": 6, "x": 12, "y": 0}, "id": 3, "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(cpu_work_request_duration_seconds_bucket{namespace=\"demo\", outcome=\"completed\"}[$__rate_interval])))", "legendFormat": "p95"}, {"expr": "histogram_quantile(0.99, sum by (le) (rate(cpu_work_request_duration_seconds_bucket{namespace=\"demo\", outcome=\"completed\"}[$__rate_interval])))", "legendFormat": "p99"}], "title": "Latency", "type": "timeseries"},
+    {"datasource": {"type": "prometheus", "uid": "prometheus"}, "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}, "gridPos": {"h": 11, "w": 6, "x": 18, "y": 0}, "id": 4, "targets": [{"expr": "sum by (outcome) (rate(cpu_work_requests_total{namespace=\"demo\", outcome=~\"rejected|cancelled\"}[$__rate_interval]))", "legendFormat": "{{outcome}}"}], "title": "Errors", "type": "timeseries"}
   ],
   "schemaVersion": 39,
   "tags": ["kubernetes", "monitoring"],
   "title": "Kubernetes Monitoring Lab",
   "uid": "k8s-monitoring-lab",
-  "version": 1
+  "version": 2
 }

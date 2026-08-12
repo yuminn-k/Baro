@@ -42,12 +42,18 @@ sequenceDiagram
 | Endpoint | 용도 |
 | --- | --- |
 | `GET /healthz` | readiness/liveness probe |
-| `GET /metrics` | `cpu_work_requests_total` 등 Prometheus 형식 메트릭 |
+| `GET /metrics` | outcome별 `cpu_work_requests_total`, `cpu_work_request_duration_seconds` 등 Prometheus 형식 메트릭 |
 | `GET /cpu-work?duration_ms=...` | 요청 처리 중 CPU 작업 수행 |
 
 Deployment는 6 replicas이며 각 container는 CPU request `100m`, limit `250m`을 갖습니다. 이 낮은 limit과 k6의 병렬 호출로 alert 조건을 안정적으로 재현합니다.
 
 ServiceMonitor는 `cpu-workload` Service의 `http` 포트를 15초 간격으로 수집합니다. Service와 ServiceMonitor에 `release: monitoring` label을 두어 kube-prometheus-stack의 selector에 포함됩니다.
+
+## Chaos 복구 관측
+
+Grafana ConfigMap은 두 Chaos 워크플로우 모두에 `Traffic → Saturation → Latency → Errors` 4개 패널을 제공합니다. demo의 Saturation 패널은 alert rule과 동일한 Pod CPU usage/limit 비율을 표시하며, 80% threshold는 `PodCpuSaturation`의 firing target과 일치합니다. demo의 Traffic·Errors는 `cpu_work_requests_total{outcome}`을, Latency는 완료 요청의 histogram p95/p99를 사용합니다.
+
+Kafka의 Saturation은 consumer reader backlog이며, Errors and idempotency outcomes 패널은 HTTP reject, Kafka publish failure, PostgreSQL insert, `ON CONFLICT DO NOTHING`으로 억제된 중복을 별개로 표시합니다. 따라서 중복 억제는 실패와 구별하고 최종 정합성은 consumer group lag 0 및 PostgreSQL의 고유 행 수로 판정합니다.
 
 ## 알림 규칙
 

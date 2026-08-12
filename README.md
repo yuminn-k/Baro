@@ -51,6 +51,8 @@ Grafana는 다음 명령으로 출력되는 port-forward를 별도 터미널에�
 make dashboard
 ```
 
+두 대시보드는 모두 **Traffic → Saturation → Latency → Errors** 순서로 배치됩니다. demo에서는 요청 처리율, Pod CPU/limit 비율(80% target), CPU-work p95/p99, HTTP 거절·취소를 확인합니다. Kafka에서는 승인 이벤트율, consumer backlog, E2E p95/p99, HTTP 거절·Kafka publish 실패·insert·멱등 중복 억제를 분리해 확인합니다. `idempotently suppressed`는 저장 실패가 아니라 `ON CONFLICT DO NOTHING`으로 안전하게 중복을 무시한 결과입니다.
+
 ## 알림 재현
 
 ```sh
@@ -95,7 +97,7 @@ make benchmark-verify
 
 `make benchmark-deploy`는 새 Rancher Desktop 클러스터에서도 monitoring Helm release를 먼저 설치하고, 로컬 `k8s-monitoring-lab:dev` 이미지를 다시 빌드한 뒤 ingest/consumer Deployment를 명시적으로 재시작합니다. 따라서 같은 이미지 태그를 사용하더라도 소스 수정 후 재실행하면 새 바이너리로 교체됩니다.
 
-`benchmark-run`은 100개의 VU가 정확히 1,000,000개의 고유 `event_id`를 최대 10분 동안 전송합니다. `benchmark-verify`는 PostgreSQL의 행 수·고유 ID·ID 범위와 Kafka consumer group lag 0을 확인합니다. Grafana에서는 **Kafka MSA Benchmark** 대시보드에서 producer acknowledgement, p95 E2E 지연, DB 멱등 저장, consumer lag를 확인합니다.
+`benchmark-run`은 100개의 VU가 정확히 1,000,000개의 고유 `event_id`를 최대 10분 동안 전송합니다. `benchmark-verify`는 PostgreSQL의 행 수·고유 ID·ID 범위와 Kafka consumer group lag 0을 확인합니다. Grafana의 **Kafka MSA Benchmark**에서는 처리율이 유지되고 consumer backlog가 0으로 회복하며 p99 지연이 안정화되는지 확인합니다. HTTP reject와 Kafka publish failure는 0이어야 하며, `idempotently suppressed`가 증가해도 `benchmark-verify`의 고유 행 수 기준을 통과하면 at-least-once 전달의 정상 멱등 처리입니다.
 
 로컬 환경은 단일 Rancher Desktop 노드, 단일 KRaft Kafka broker, 단일 PostgreSQL PVC입니다. 따라서 Kafka API, consumer group, 재시도와 멱등 sink의 동작을 검증하는 용도이며, AWS MSK의 멀티 AZ 복제나 EKS 노드 자동 확장·RDS Multi-AZ 장애 내성을 증명하지는 않습니다.
 
