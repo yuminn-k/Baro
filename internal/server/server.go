@@ -10,8 +10,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -21,10 +23,23 @@ const (
 
 var errInvalidWorkDuration = errors.New("duration_ms must be between 1 and 2000")
 
+type cpuWorkOutcome string
+
+const (
+	cpuWorkCompleted cpuWorkOutcome = "completed"
+	cpuWorkRejected  cpuWorkOutcome = "rejected"
+	cpuWorkCancelled cpuWorkOutcome = "cancelled"
+)
+
 type Server struct {
-	logger       *slog.Logger
-	mux          *http.ServeMux
-	workRequests atomic.Uint64
+	logger  *slog.Logger
+	metrics *cpuWorkMetrics
+	mux     *http.ServeMux
+}
+
+type cpuWorkMetrics struct {
+	duration *prometheus.HistogramVec
+	requests *prometheus.CounterVec
 }
 
 type alertPayload struct {
@@ -35,10 +50,11 @@ type alertPayload struct {
 }
 
 func New(logger *slog.Logger) *Server {
-	server := &Server{logger: logger, mux: http.NewServeMux()}
+	metrics, registry := newCPUWorkMetrics()
+	server := &Server{logger: logger, metrics: metrics, mux: http.NewServeMux()}
 	server.mux.HandleFunc("GET /healthz", server.handleHealth)
-	server.mux.HandleFunc("GET /metrics", server.handleMetrics)
-	server.mux.HandleFunc("GET /cpu-work", server.handleCPUWork)
+	server.mux.Handle("GET /metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	server.mux.HandleFunc("/cpu-work", server.handleCPUWork)
 	server.mux.HandleFunc("POST /alerts", server.handleAlerts)
 	return server
 }
@@ -51,18 +67,19 @@ func (s *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
 	writeText(writer, http.StatusOK, "ok\n")
 }
 
-func (s *Server) handleMetrics(writer http.ResponseWriter, _ *http.Request) {
-	writer.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-	writeText(
-		writer,
-		http.StatusOK,
-		"# HELP cpu_work_requests_total Number of completed CPU work requests.\n"+
-			"# TYPE cpu_work_requests_total counter\n"+
-			"cpu_work_requests_total "+strconv.FormatUint(s.workRequests.Load(), 10)+"\n",
-	)
-}
-
 func (s *Server) handleCPUWork(writer http.ResponseWriter, request *http.Request) {
+	startedAt := time.Now()
+	outcome := cpuWorkRejected
+	defer func() {
+		s.metrics.observe(outcome, time.Since(startedAt))
+	}()
+
+	if request.Method != http.MethodGet {
+		writer.Header().Set("Allow", http.MethodGet)
+		http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	duration, err := workDuration(request)
 	if err != nil {
 		http.Error(writer, err.Error(), http.StatusBadRequest)
@@ -70,12 +87,36 @@ func (s *Server) handleCPUWork(writer http.ResponseWriter, request *http.Request
 	}
 
 	if !spinUntil(request.Context(), duration) {
+		outcome = cpuWorkCancelled
 		http.Error(writer, "request cancelled", http.StatusRequestTimeout)
 		return
 	}
 
-	s.workRequests.Add(1)
+	outcome = cpuWorkCompleted
 	writeJSON(writer, http.StatusOK, map[string]string{"status": "completed"})
+}
+
+func newCPUWorkMetrics() (*cpuWorkMetrics, *prometheus.Registry) {
+	metrics := &cpuWorkMetrics{
+		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "cpu_work_requests_total",
+			Help: "CPU-work requests grouped by HTTP outcome.",
+		}, []string{"outcome"}),
+		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "cpu_work_request_duration_seconds",
+			Help:    "CPU-work request duration grouped by HTTP outcome.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10},
+		}, []string{"outcome"}),
+	}
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(metrics.requests, metrics.duration)
+	return metrics, registry
+}
+
+func (metrics *cpuWorkMetrics) observe(outcome cpuWorkOutcome, duration time.Duration) {
+	labels := prometheus.Labels{"outcome": string(outcome)}
+	metrics.requests.With(labels).Inc()
+	metrics.duration.With(labels).Observe(duration.Seconds())
 }
 
 func (s *Server) handleAlerts(writer http.ResponseWriter, request *http.Request) {
