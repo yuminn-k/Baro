@@ -28,7 +28,7 @@ kubectl --context rancher-desktop get alertmanager -n monitoring monitoring-kube
 
 1. 별도 터미널에서 `make alertmanager`를 실행합니다.
 2. `make load`를 실행합니다.
-3. 약 2분 뒤 Grafana의 **PodCpuSaturation alert state** 패널 또는 Alertmanager UI에서 firing을 확인합니다.
+3. 약 2분 뒤 Grafana의 **CPU saturation 80%** 패널 또는 Alertmanager UI에서 firing을 확인합니다.
 4. `make verify-alert`로 로컬 receiver 전달을 확인합니다.
 5. Job이 끝난 뒤 Alertmanager UI 또는 receiver 로그에서 resolved를 확인합니다.
 
