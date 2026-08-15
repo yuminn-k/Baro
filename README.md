@@ -45,7 +45,7 @@ make deploy
 
 이 명령은 사전 점검과 테스트를 수행하고, 로컬 containerd에 이미지를 빌드한 뒤 Prometheus/Grafana/Alertmanager 및 데모 리소스를 배포합니다.
 
-Grafana는 다음 명령으로 출력되는 port-forward를 별도 터미널에서 실행한 뒤 `http://localhost:3000`으로 접속합니다. 대시보드 이름은 **Kubernetes Monitoring Lab**입니다.
+Grafana는 다음 명령으로 출력되는 port-forward를 별도 터미널에서 실행한 뒤 `http://localhost:3000`으로 접속합니다. 대시보드는 애플리케이션 지표용 **Kubernetes Monitoring Lab** 및 k6 실행 지표용 **k6 Load Test**를 제공합니다. `make load`는 k6 지표를 Prometheus remote-write로 전송하므로, 실행 중 또는 완료 직후 **k6 Load Test**에서 VU·요청률·HTTP 실패율·check 성공률·p95/p99 지연을 확인할 수 있습니다.
 
 ```sh
 make dashboard

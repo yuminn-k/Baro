@@ -31,7 +31,12 @@ spec:
       containers:
         - name: k6
           image: grafana/k6:0.57.0
-          args: [run, /scripts/cpu-saturation.js]
+          args: [run, --out, experimental-prometheus-rw, --tag, testid=cpu-load, /scripts/cpu-saturation.js]
+          env:
+            - name: K6_PROMETHEUS_RW_SERVER_URL
+              value: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090/api/v1/write
+            - name: K6_PROMETHEUS_RW_TREND_STATS
+              value: p(95),p(99)
           volumeMounts:
             - name: script
               mountPath: /scripts
