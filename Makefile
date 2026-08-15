@@ -33,6 +33,7 @@ app-up:
 	@$(KUBECTL) apply -f k8s/workload.yaml
 	@$(KUBECTL) apply -f k8s/alert-receiver.yaml
 	@$(KUBECTL) apply -f dashboards/configmap.yaml
+	@$(KUBECTL) apply -f dashboards/k6-load-test-configmap.yaml
 	@$(KUBECTL) apply -f alerts/pod-cpu-saturation.yaml
 	@$(KUBECTL) --namespace demo rollout restart deployment/cpu-workload
 	@$(KUBECTL) --namespace demo rollout status deployment/cpu-workload --timeout=3m
