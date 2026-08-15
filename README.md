@@ -5,6 +5,52 @@ Kubernetes 위에서 운영되는 쇼핑몰 MSA 학습 플랫폼입니다. Baro�
 > **문서 기준:** 이 README는 Baro의 목표 아키텍처와 운영 구성이 모두 완성된 상태를 기준으로 합니다.
 
 ## 목표
+```mermaid
+flowchart LR
+  K6[k6 Job<br/>60 VU / 4 min] --> Workload[6 x cpu-workload Pod]
+  Workload -->|/metrics| Prometheus
+  Prometheus -->|PodCpuSaturation<br/>CPU > 80% for 2 min| Alertmanager
+  Prometheus --> Grafana
+  Alertmanager --> Receiver[local alert receiver]
+  Alertmanager -->|optional| Slack[Slack Incoming Webhook]
+```
+
+| 영역 | 구성 |
+| --- | --- |
+| Kubernetes | Rancher Desktop K3s, context `rancher-desktop` |
+| 관측 스택 | `kube-prometheus-stack` chart `88.1.3` |
+| 데모 워크로드 | `cpu-workload` Deployment, 6 replicas, Pod당 CPU limit `250m` |
+| 부하 | 클러스터 내부 `grafana/k6:0.57.0`, 60 VU, 4분 |
+| 알림 | CPU 사용량/CPU limit > 80%가 2분 지속되면 `PodCpuSaturation` |
+
+자세한 구조는 [설계 문서](docs/architecture.md), 운영과 장애 대응은 [운영 가이드](docs/runbook.md)를 참고하세요.
+
+## 사전 조건
+
+- Rancher Desktop에서 Kubernetes가 활성화되어 있고 `kubectl config current-context`가 `rancher-desktop`을 가리킴
+- `kubectl`, `helm`, `nerdctl`, Go 1.24 이상 설치
+- Helm 저장소 최초 등록
+
+```sh
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+```
+
+## 빠른 시작
+
+저장소 루트에서 실행합니다.
+
+```sh
+make deploy
+```
+
+이 명령은 사전 점검과 테스트를 수행하고, 로컬 containerd에 이미지를 빌드한 뒤 Prometheus/Grafana/Alertmanager 및 데모 리소스를 배포합니다.
+
+Grafana는 다음 명령으로 출력되는 port-forward를 별도 터미널에서 실행한 뒤 `http://localhost:3000`으로 접속합니다. 대시보드는 애플리케이션 지표용 **Kubernetes Monitoring Lab** 및 k6 실행 지표용 **k6 Load Test**를 제공합니다. `make load`는 k6 지표를 Prometheus remote-write로 전송하므로, 실행 중 또는 완료 직후 **k6 Load Test**에서 VU·요청률·HTTP 실패율·check 성공률·p95/p99 지연을 확인할 수 있습니다.
+
+```sh
+make dashboard
+```
 
 - Kubernetes에서 독립 배포·확장 가능한 쇼핑몰 MSA를 운영한다.
 - 주문 처리의 동기 경계와 Kafka 이벤트 기반 비동기 경계를 구분한다.

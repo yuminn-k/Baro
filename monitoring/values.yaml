@@ -48,6 +48,8 @@ alertmanager:
 
 prometheus:
   prometheusSpec:
+    # Allows in-cluster k6 Jobs to publish their real-time test metrics.
+    enableRemoteWriteReceiver: true
     retention: 24h
     maximumStartupDurationSeconds: 900
     resources:
