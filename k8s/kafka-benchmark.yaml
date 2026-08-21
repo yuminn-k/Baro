@@ -206,18 +206,24 @@ spec:
       containers:
         - name: create-topic
           image: apache/kafka:3.8.1
-          command:
-            - /opt/kafka/bin/kafka-topics.sh
-            - --bootstrap-server
-            - kafka.kafka-benchmark.svc.cluster.local:9092
-            - --create
-            - --if-not-exists
-            - --topic
-            - benchmark-events
-            - --partitions
-            - "12"
-            - --replication-factor
-            - "1"
+          command: [sh, -ec]
+          args:
+            - |
+              kafka_topics=/opt/kafka/bin/kafka-topics.sh
+              bootstrap=kafka.kafka-benchmark.svc.cluster.local:9092
+              topic=benchmark-events
+              partitions=12
+              "$kafka_topics" --bootstrap-server "$bootstrap" --create --if-not-exists \
+                --topic "$topic" --partitions "$partitions" --replication-factor 1
+              current_partitions="$($kafka_topics --bootstrap-server "$bootstrap" --describe --topic "$topic" | \
+                awk '{ for (i = 1; i <= NF; i++) if ($i == "PartitionCount:") { print $(i + 1); exit } }')"
+              test -n "$current_partitions"
+              if [ "$current_partitions" -lt "$partitions" ]; then
+                "$kafka_topics" --bootstrap-server "$bootstrap" --alter --topic "$topic" --partitions "$partitions"
+              fi
+              actual_partitions="$($kafka_topics --bootstrap-server "$bootstrap" --describe --topic "$topic" | \
+                awk '{ for (i = 1; i <= NF; i++) if ($i == "PartitionCount:") { print $(i + 1); exit } }')"
+              test "$actual_partitions" -ge "$partitions"
 ---
 apiVersion: apps/v1
 kind: Deployment
