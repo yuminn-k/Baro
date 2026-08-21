@@ -8,6 +8,7 @@ jobs:
   assign-author:
     permissions:
       issues: write
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - name: Assign the pull request author
