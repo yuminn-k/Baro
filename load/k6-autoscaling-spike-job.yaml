@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-autoscaling-spike-script
+  namespace: kafka-benchmark
+data:
+  spike.js: |
+    import http from 'k6/http';
+    import { check } from 'k6';
+    import exec from 'k6/execution';
+
+    const sustainedSpikeStartsAtMs = 90_000;
+    const sustainedSpikeEndsAtMs = 270_000;
+
+    export const options = {
+      scenarios: {
+        spike: {
+          executor: 'ramping-vus',
+          startVUs: 100,
+          stages: [
+            { duration: '60s', target: 100 },
+            { duration: '30s', target: 400 },
+            { duration: '3m', target: 400 },
+            { duration: '1m', target: 100 },
+            { duration: '30s', target: 0 },
+          ],
+          gracefulRampDown: '0s',
+          gracefulStop: '0s',
+        },
+      },
+      thresholds: {
+        'http_req_failed{phase:sustained-spike}': ['rate<0.01'],
+        'checks{phase:sustained-spike}': ['rate>0.99'],
+        'dropped_iterations{scenario:spike}': ['count==0'],
+      },
+    };
+
+    function phase() {
+      const elapsedMs = Date.now() - exec.scenario.startTime;
+      if (elapsedMs >= sustainedSpikeStartsAtMs && elapsedMs < sustainedSpikeEndsAtMs) {
+        return 'sustained-spike';
+      }
+      return 'transition';
+    }
+
+    export default function () {
+      const requestPhase = phase();
+      const response = http.post(
+        'http://ingest.kafka-benchmark.svc.cluster.local:8080/events',
+        JSON.stringify({
+          event_id: exec.scenario.iterationInTest,
+          submitted_at_unix_ms: Date.now(),
+          payload: `${exec.scenario.iterationInTest}`.padEnd(256, 'x'),
+        }),
+        {
+          headers: { 'Content-Type': 'application/json' },
+          tags: { phase: requestPhase },
+          timeout: '30s',
+        },
+      );
+      check(response, { 'Kafka acknowledgement received': (result) => result.status === 202 }, { phase: requestPhase });
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-autoscaling-spike
+  namespace: kafka-benchmark
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: k6
+          image: grafana/k6:0.57.0
+          args: [run, /scripts/spike.js]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+          resources:
+            requests:
+              cpu: "2"
+              memory: 1Gi
+            limits:
+              cpu: "3"
+              memory: 2Gi
+      volumes:
+        - name: script
+          configMap:
+            name: k6-autoscaling-spike-script
