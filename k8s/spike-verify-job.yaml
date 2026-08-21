@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spike-verify
+  namespace: kafka-benchmark
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: verify
+          image: postgres:17.10-trixie
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-auth
+                  key: password
+          command: [sh, -ec]
+          args:
+            - |
+              result=$$(psql -h postgres.kafka-benchmark.svc.cluster.local -U benchmark -d benchmark -tAc 'SELECT count(*), count(DISTINCT event_id) FROM benchmark_events')
+              total=$${result%%|*}
+              distinct=$${result##*|}
+              test "$$total" -gt 0
+              test "$$total" = "$$distinct"
