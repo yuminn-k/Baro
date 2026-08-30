@@ -5,4 +5,4 @@ resources:
 images:
   - name: k8s-monitoring-lab
     newName: ghcr.io/yuminn-k/k8s-monitoring
-    newTag: sha-bootstrap
+    newTag: sha-2b018671a4b16dfc14fb02d12b0e45aa5576d4bf
