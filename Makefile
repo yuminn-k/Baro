@@ -6,7 +6,7 @@ KUBECTL := kubectl --context $(CONTEXT)
 HELM := helm
 NERDCTL := nerdctl --namespace k8s.io
 
-.PHONY: preflight test build-image monitoring-up app-up deploy load verify-alert dashboard alertmanager enable-slack teardown benchmark-secrets benchmark-up benchmark-deploy benchmark-run benchmark-verify benchmark-dashboard benchmark-down
+.PHONY: preflight test build-image monitoring-up app-up deploy load verify-alert dashboard alertmanager enable-slack teardown benchmark-secrets benchmark-up benchmark-deploy benchmark-run benchmark-verify benchmark-dashboard benchmark-down argocd-preflight argocd-bootstrap argocd-status argocd-sync argocd-benchmark-secret argocd-teardown
 
 preflight:
 	@$(KUBECTL) get nodes
@@ -21,20 +21,33 @@ build-image:
 	@$(NERDCTL) build -t $(IMAGE) .
 
 monitoring-up:
-	@$(HELM) upgrade --install monitoring prometheus-community/kube-prometheus-stack \
-		--namespace monitoring --create-namespace --version 88.1.3 \
-		--values monitoring/values.yaml --wait --timeout 10m
+	@$(MAKE) argocd-bootstrap
 
 app-up:
-	@$(KUBECTL) apply -f k8s/namespaces.yaml
-	@$(KUBECTL) apply -f k8s/workload.yaml
-	@$(KUBECTL) apply -f k8s/alert-receiver.yaml
-	@$(KUBECTL) apply -f dashboards/configmap.yaml
-	@$(KUBECTL) apply -f alerts/pod-cpu-saturation.yaml
-	@$(KUBECTL) --namespace demo rollout status deployment/cpu-workload --timeout=3m
-	@$(KUBECTL) --namespace alerting rollout status deployment/alert-receiver --timeout=3m
+	@$(MAKE) argocd-sync APP=baro-demo
 
-deploy: preflight test build-image monitoring-up app-up
+argocd-preflight:
+	@bash scripts/argocd.sh preflight
+
+argocd-bootstrap:
+	@bash scripts/argocd.sh bootstrap
+
+argocd-status:
+	@bash scripts/argocd.sh status
+
+argocd-sync:
+	@test -n "$(APP)"
+	@bash scripts/argocd.sh sync "$(APP)"
+
+argocd-benchmark-secret:
+	@bash scripts/argocd.sh benchmark-secret
+
+argocd-teardown:
+	@test "$(CONFIRM)" = "teardown" || (echo 'Set CONFIRM=teardown to suspend Argo CD applications.' >&2; exit 1)
+	@bash scripts/argocd.sh suspend
+
+deploy: test argocd-bootstrap
+	@bash scripts/argocd.sh sync baro-demo
 
 load:
 	@$(KUBECTL) --namespace demo delete job cpu-load --ignore-not-found
@@ -55,31 +68,16 @@ enable-slack:
 	@sh scripts/enable-slack.sh
 
 teardown:
-	@$(KUBECTL) delete namespace demo alerting --ignore-not-found
-	@$(HELM) uninstall monitoring --namespace monitoring || true
+	@$(MAKE) argocd-teardown CONFIRM="$(CONFIRM)"
 
 benchmark-secrets:
-	@if $(KUBECTL) --namespace kafka-benchmark get secret postgres-auth >/dev/null 2>&1; then exit 0; fi; \
-	benchmark_password=$$(openssl rand -hex 24); \
-	$(KUBECTL) --namespace kafka-benchmark create secret generic postgres-auth \
-		--from-literal=password="$$benchmark_password" \
-		--from-literal=url="postgres://benchmark:$$benchmark_password@postgres.kafka-benchmark.svc.cluster.local:5432/benchmark?sslmode=disable" \
-		--dry-run=client -o yaml | $(KUBECTL) apply -f -
+	@$(MAKE) argocd-benchmark-secret
 
-benchmark-up: monitoring-up
-	@$(KUBECTL) apply -f k8s/kafka-benchmark.yaml
-	@$(MAKE) benchmark-secrets
-	@$(KUBECTL) --namespace kafka-benchmark rollout status statefulset/kafka --timeout=5m
-	@$(KUBECTL) --namespace kafka-benchmark rollout status statefulset/postgres --timeout=5m
-	@$(KUBECTL) --namespace kafka-benchmark wait --for=condition=complete job/kafka-topic --timeout=5m
-	@$(KUBECTL) --namespace kafka-benchmark rollout status deployment/ingest --timeout=3m
-	@$(KUBECTL) --namespace kafka-benchmark rollout status deployment/consumer --timeout=3m
-	@$(KUBECTL) apply -f dashboards/kafka-benchmark-configmap.yaml
+benchmark-up: argocd-bootstrap argocd-benchmark-secret
+	@bash scripts/argocd.sh sync kafka-benchmark
 
-benchmark-deploy: preflight test build-image benchmark-up
-	@$(KUBECTL) --namespace kafka-benchmark rollout restart deployment/ingest deployment/consumer
-	@$(KUBECTL) --namespace kafka-benchmark rollout status deployment/ingest --timeout=3m
-	@$(KUBECTL) --namespace kafka-benchmark rollout status deployment/consumer --timeout=3m
+benchmark-deploy: test argocd-bootstrap argocd-benchmark-secret
+	@bash scripts/argocd.sh sync kafka-benchmark
 
 benchmark-run:
 	@$(KUBECTL) --namespace kafka-benchmark delete job benchmark-reset kafka-benchmark-load --ignore-not-found
@@ -99,4 +97,6 @@ benchmark-dashboard:
 	@echo 'Grafana: kubectl --context $(CONTEXT) --namespace monitoring port-forward svc/monitoring-grafana 3000:80'
 
 benchmark-down:
+	@test "$(CONFIRM)" = "teardown" || (echo 'Set CONFIRM=teardown to remove kafka-benchmark.' >&2; exit 1)
+	@$(MAKE) argocd-teardown CONFIRM=teardown
 	@$(KUBECTL) delete namespace kafka-benchmark --ignore-not-found

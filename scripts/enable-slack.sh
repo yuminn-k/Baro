@@ -7,4 +7,4 @@ context=${KUBE_CONTEXT:-rancher-desktop}
 kubectl --context "$context" --namespace monitoring create secret generic slack-webhook-url \
   --from-literal=url="$SLACK_WEBHOOK_URL" \
   --dry-run=client -o yaml | kubectl --context "$context" apply -f -
-kubectl --context "$context" apply -f alerts/slack-alertmanagerconfig.yaml
+kubectl --context "$context" apply -f gitops/platform-monitoring/optional/slack-alertmanagerconfig.yaml
