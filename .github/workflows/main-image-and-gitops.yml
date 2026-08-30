@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE_NAME: ghcr.io/yuminn-k/k8s-monitoring
+  IMAGE_NAME: ghcr.io/yuminn-k/baro
 
 jobs:
   validate:
