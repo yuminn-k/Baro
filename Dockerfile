@@ -8,6 +8,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/workload ./cmd/wor
     && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/consumer ./cmd/consumer
 
 FROM gcr.io/distroless/static-debian12:nonroot
+LABEL org.opencontainers.image.source="https://github.com/yuminn-k/Baro"
 COPY --from=build /out/workload /workload
 COPY --from=build /out/ingest /ingest
 COPY --from=build /out/consumer /consumer

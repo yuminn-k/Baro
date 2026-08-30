@@ -12,8 +12,8 @@ kafka_manifest="$(kubectl kustomize gitops/kafka-benchmark)"
 platform_manifest="$(kubectl kustomize gitops/platform-monitoring/resources)"
 application_manifests="$(printf '%s\n' "$demo_manifest" "$kafka_manifest")"
 
-printf '%s\n' "$application_manifests" | grep -q 'image: ghcr.io/yuminn-k/k8s-monitoring:sha-'
-test "$(printf '%s\n' "$application_manifests" | grep -c 'image: ghcr.io/yuminn-k/k8s-monitoring:sha-')" -eq 4
+printf '%s\n' "$application_manifests" | grep -q 'image: ghcr.io/yuminn-k/baro:sha-'
+test "$(printf '%s\n' "$application_manifests" | grep -c 'image: ghcr.io/yuminn-k/baro:sha-')" -eq 4
 test "$(printf '%s\n' "$application_manifests" | grep -c 'imagePullPolicy: IfNotPresent')" -eq 4
 ! printf '%s\n' "$application_manifests" | grep -q 'k8s-monitoring-lab:dev'
 ! printf '%s\n' "$application_manifests" | grep -q 'imagePullPolicy: Never'
@@ -27,6 +27,8 @@ grep -q 'commit-message: "chore: update GitOps image to \${{ github.sha }}"' .gi
 grep -q 'title: "chore: deploy \${{ github.sha }} via GitOps"' .github/workflows/main-image-and-gitops.yml
 grep -q 'platforms: linux/amd64,linux/arm64' .github/workflows/main-image-and-gitops.yml
 grep -q 'uses: docker/setup-buildx-action@v3' .github/workflows/main-image-and-gitops.yml
+grep -q 'IMAGE_NAME: ghcr.io/yuminn-k/baro' .github/workflows/main-image-and-gitops.yml
+! grep -R -n 'ghcr.io/yuminn-k/k8s-monitoring' .github gitops
 test "$(printf '%s\n' "$application_manifests" | grep -c 'maxSurge: 0')" -eq 4
 
 render_helm() {
