@@ -24,6 +24,13 @@ spec:
   destination:
     name: in-cluster
     namespace: monitoring
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: monitoring-grafana
+      namespace: monitoring
+      jsonPointers:
+        - /data
   syncPolicy:
     automated:
       enabled: true
@@ -33,3 +40,4 @@ spec:
       - PruneLast=true
       - CreateNamespace=false
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
