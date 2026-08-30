@@ -26,6 +26,7 @@ printf '%s\n' "$platform_manifest" | grep -q 'kind: PrometheusRule'
 grep -q 'commit-message: "chore: update GitOps image to \${{ github.sha }}"' .github/workflows/main-image-and-gitops.yml
 grep -q 'title: "chore: deploy \${{ github.sha }} via GitOps"' .github/workflows/main-image-and-gitops.yml
 grep -q 'platforms: linux/amd64,linux/arm64' .github/workflows/main-image-and-gitops.yml
+grep -q 'uses: docker/setup-buildx-action@v3' .github/workflows/main-image-and-gitops.yml
 test "$(printf '%s\n' "$application_manifests" | grep -c 'maxSurge: 0')" -eq 4
 
 render_helm() {
