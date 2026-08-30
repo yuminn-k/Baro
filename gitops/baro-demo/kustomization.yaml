@@ -6,4 +6,4 @@ resources:
 images:
   - name: k8s-monitoring-lab
     newName: ghcr.io/yuminn-k/baro
-    newTag: sha-735cb1474447cd556585da36f7463f89614932a8
+    newTag: sha-d43556da9046788e07c17e1d887766a0f37c791e
