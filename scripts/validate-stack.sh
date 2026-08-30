@@ -8,6 +8,7 @@ grep -q '^    externalUrl: http://localhost:19093$' gitops/platform-monitoring/v
 grep -q '^  name: kafka-benchmark$' gitops/argocd/bootstrap/namespaces.yaml
 grep -q '^          iterations: 1000000,$' load/k6-benchmark-job.yaml
 grep -q '^          maxDuration: '\''10m'\'',$' load/k6-benchmark-job.yaml
+grep -q '^              cpu: 100m$' load/k6-benchmark-job.yaml
 grep -q '^      event_id BIGINT PRIMARY KEY,$' gitops/kafka-benchmark/resources/kafka-benchmark.yaml
 grep -q -- '--alter' gitops/kafka-benchmark/resources/kafka-benchmark.yaml
 grep -q 'PartitionCount:' gitops/kafka-benchmark/resources/kafka-benchmark.yaml
