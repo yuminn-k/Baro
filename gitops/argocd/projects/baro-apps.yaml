@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: baro-apps
+  namespace: argocd
+spec:
+  description: Baro application resources
+  sourceRepos:
+    - https://github.com/yuminn-k/k8s-monitoring.git
+  destinations:
+    - name: in-cluster
+      namespace: '*'
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

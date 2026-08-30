@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: baro-platform
+  namespace: argocd
+spec:
+  description: Baro platform monitoring resources
+  sourceRepos:
+    - https://github.com/yuminn-k/k8s-monitoring.git
+    - https://prometheus-community.github.io/helm-charts
+  destinations:
+    - name: in-cluster
+      namespace: monitoring
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

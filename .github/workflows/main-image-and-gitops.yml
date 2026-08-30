@@ -1,0 +1,85 @@
+name: Publish image and update GitOps
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - gitops/**
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
+concurrency:
+  group: main-image-and-gitops
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/yuminn-k/k8s-monitoring
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Run tests and GitOps render validation
+        run: make test
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish immutable image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+
+  gitops-update:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Update GitOps image tag
+        run: bash scripts/update-gitops-image.sh "sha-${GITHUB_SHA}"
+
+      - name: Create GitOps update pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: automation/gitops-image-${{ github.sha }}
+          delete-branch: true
+          commit-message: "chore: update GitOps image to ${GITHUB_SHA}"
+          title: "chore: deploy ${GITHUB_SHA} via GitOps"
+          body: |
+            Updates the Baro GitOps overlays to the immutable GHCR image built from `${GITHUB_SHA}`.
+
+            The image was published only after the repository validation job passed.

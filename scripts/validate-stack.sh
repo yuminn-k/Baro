@@ -1,17 +1,19 @@
 #!/bin/sh
 set -eu
 
-grep -q '^    maximumStartupDurationSeconds: 900$' monitoring/values.yaml
-grep -q '^      - name: "null"$' monitoring/values.yaml
-grep -q '^      org_role: Viewer$' monitoring/values.yaml
-grep -q '^    externalUrl: http://localhost:19093$' monitoring/values.yaml
-grep -q '^  name: kafka-benchmark$' k8s/kafka-benchmark.yaml
+grep -q '^    maximumStartupDurationSeconds: 900$' gitops/platform-monitoring/values.yaml
+grep -q '^      - name: "null"$' gitops/platform-monitoring/values.yaml
+grep -q '^      org_role: Viewer$' gitops/platform-monitoring/values.yaml
+grep -q '^    externalUrl: http://localhost:19093$' gitops/platform-monitoring/values.yaml
+grep -q '^  name: kafka-benchmark$' gitops/argocd/bootstrap/namespaces.yaml
 grep -q '^          iterations: 1000000,$' load/k6-benchmark-job.yaml
 grep -q '^          maxDuration: '\''10m'\'',$' load/k6-benchmark-job.yaml
-grep -q '^      event_id BIGINT PRIMARY KEY,$' k8s/kafka-benchmark.yaml
-grep -q '^benchmark-up: monitoring-up$' Makefile
-grep -q '^benchmark-deploy: preflight test build-image benchmark-up$' Makefile
-grep -q 'rollout restart deployment/ingest deployment/consumer' Makefile
+grep -q '^      event_id BIGINT PRIMARY KEY,$' gitops/kafka-benchmark/resources/kafka-benchmark.yaml
+grep -q -- '--alter' gitops/kafka-benchmark/resources/kafka-benchmark.yaml
+grep -q 'PartitionCount:' gitops/kafka-benchmark/resources/kafka-benchmark.yaml
+grep -q '^benchmark-up: argocd-bootstrap argocd-benchmark-secret$' Makefile
+grep -q '^benchmark-deploy: test argocd-bootstrap argocd-benchmark-secret$' Makefile
+! grep -q 'rollout restart deployment/ingest deployment/consumer' Makefile
 python3 - <<'PY'
 import json
 from pathlib import Path
@@ -35,8 +37,8 @@ def assert_four_signals(dashboard: dict, expected_titles: list[str]) -> None:
     ]
 
 
-demo = config_map_dashboard("dashboards/configmap.yaml", "k8s-monitoring-lab.json")
-kafka = config_map_dashboard("dashboards/kafka-benchmark-configmap.yaml", "kafka-benchmark.json")
+demo = config_map_dashboard("gitops/platform-monitoring/resources/configmap.yaml", "k8s-monitoring-lab.json")
+kafka = config_map_dashboard("gitops/platform-monitoring/resources/kafka-benchmark-configmap.yaml", "kafka-benchmark.json")
 
 assert_four_signals(demo, ["Traffic", "CPU saturation 80%", "Latency", "Errors"])
 assert_four_signals(kafka, ["Traffic", "Saturation (backlog)", "Latency", "Errors & Idempotency"])
@@ -61,3 +63,5 @@ assert {target["legendFormat"] for target in kafka["panels"][3]["targets"]} == {
     "deduplicated",
 }
 PY
+
+sh scripts/validate-gitops.sh

@@ -57,7 +57,7 @@ Kafka의 Saturation은 consumer reader backlog이며, Errors and idempotency out
 
 ## 알림 규칙
 
-`alerts/pod-cpu-saturation.yaml`의 `PodCpuSaturation`은 다음 비율을 Pod별로 계산합니다.
+`gitops/platform-monitoring/resources/pod-cpu-saturation.yaml`의 `PodCpuSaturation`은 다음 비율을 Pod별로 계산합니다.
 
 ```promql
 sum by (namespace, pod) (
