@@ -25,6 +25,8 @@ printf '%s\n' "$platform_manifest" | grep -q 'kind: PrometheusRule'
 ! grep -n -E '(^[[:space:]]*(commit-message|title):|immutable GHCR image built from).*\${GITHUB_SHA}' .github/workflows/main-image-and-gitops.yml
 grep -q 'commit-message: "chore: update GitOps image to \${{ github.sha }}"' .github/workflows/main-image-and-gitops.yml
 grep -q 'title: "chore: deploy \${{ github.sha }} via GitOps"' .github/workflows/main-image-and-gitops.yml
+grep -q 'platforms: linux/amd64,linux/arm64' .github/workflows/main-image-and-gitops.yml
+test "$(printf '%s\n' "$application_manifests" | grep -c 'maxSurge: 0')" -eq 4
 
 render_helm() {
   if ! helm repo list | awk 'NR > 1 { print $1 }' | grep -qx prometheus-community; then
