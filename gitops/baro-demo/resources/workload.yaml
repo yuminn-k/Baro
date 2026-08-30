@@ -5,6 +5,11 @@ metadata:
   namespace: demo
 spec:
   replicas: 6
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: cpu-workload
