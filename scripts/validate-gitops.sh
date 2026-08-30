@@ -22,6 +22,9 @@ test "$(printf '%s\n' "$application_manifests" | grep -c 'imagePullPolicy: IfNot
 printf '%s\n' "$kafka_manifest" | grep -q 'argocd.argoproj.io/hook: PostSync'
 printf '%s\n' "$platform_manifest" | grep -q 'kind: PrometheusRule'
 ! grep -R -n -E '^kind: Secret$|^stringData:' gitops
+! grep -n -E '(^[[:space:]]*(commit-message|title):|immutable GHCR image built from).*\${GITHUB_SHA}' .github/workflows/main-image-and-gitops.yml
+grep -q 'commit-message: "chore: update GitOps image to \${{ github.sha }}"' .github/workflows/main-image-and-gitops.yml
+grep -q 'title: "chore: deploy \${{ github.sha }} via GitOps"' .github/workflows/main-image-and-gitops.yml
 
 render_helm() {
   if ! helm repo list | awk 'NR > 1 { print $1 }' | grep -qx prometheus-community; then

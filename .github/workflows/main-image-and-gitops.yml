@@ -77,9 +77,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: automation/gitops-image-${{ github.sha }}
           delete-branch: true
-          commit-message: "chore: update GitOps image to ${GITHUB_SHA}"
-          title: "chore: deploy ${GITHUB_SHA} via GitOps"
+          commit-message: "chore: update GitOps image to ${{ github.sha }}"
+          title: "chore: deploy ${{ github.sha }} via GitOps"
           body: |
-            Updates the Baro GitOps overlays to the immutable GHCR image built from `${GITHUB_SHA}`.
+            Updates the Baro GitOps overlays to the immutable GHCR image built from `${{ github.sha }}`.
 
             The image was published only after the repository validation job passed.
