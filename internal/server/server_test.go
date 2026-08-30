@@ -44,8 +44,12 @@ func TestServer_recordsCPUWorkMetric_when_workIsRequested(t *testing.T) {
 	if workRecorder.Code != http.StatusOK {
 		t.Fatalf("work status = %d, want %d", workRecorder.Code, http.StatusOK)
 	}
-	if !strings.Contains(metricsRecorder.Body.String(), "cpu_work_requests_total 1") {
-		t.Fatalf("metrics = %q, want cpu_work_requests_total 1", metricsRecorder.Body.String())
+	metrics := metricsRecorder.Body.String()
+	if !strings.Contains(metrics, `cpu_work_requests_total{outcome="completed"} 1`) {
+		t.Fatalf("metrics = %q, want completed CPU-work request", metrics)
+	}
+	if !strings.Contains(metrics, `cpu_work_request_duration_seconds_bucket{outcome="completed",le="10"} 1`) {
+		t.Fatalf("metrics = %q, want completed CPU-work duration histogram", metrics)
 	}
 }
 
@@ -61,6 +65,38 @@ func TestServer_rejectsCPUWork_when_durationIsInvalid(t *testing.T) {
 	// Then
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
+	}
+
+	metricsRecorder := httptest.NewRecorder()
+	metricsRequest := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	server.Handler().ServeHTTP(metricsRecorder, metricsRequest)
+
+	if !strings.Contains(metricsRecorder.Body.String(), `cpu_work_requests_total{outcome="rejected"} 1`) {
+		t.Fatalf("metrics = %q, want rejected CPU-work request", metricsRecorder.Body.String())
+	}
+}
+
+func TestServer_recordsRejectedMetric_when_cpuWorkMethodIsNotGET(t *testing.T) {
+	// Given
+	server := New(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/cpu-work", nil)
+
+	// When
+	server.Handler().ServeHTTP(recorder, request)
+	metricsRecorder := httptest.NewRecorder()
+	metricsRequest := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	server.Handler().ServeHTTP(metricsRecorder, metricsRequest)
+
+	// Then
+	if recorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusMethodNotAllowed)
+	}
+	if allow := recorder.Header().Get("Allow"); allow != http.MethodGet {
+		t.Fatalf("Allow = %q, want %q", allow, http.MethodGet)
+	}
+	if !strings.Contains(metricsRecorder.Body.String(), `cpu_work_requests_total{outcome="rejected"} 1`) {
+		t.Fatalf("metrics = %q, want rejected CPU-work request", metricsRecorder.Body.String())
 	}
 }
 

@@ -9,6 +9,9 @@
 | 전체 배포 | `make deploy` | Helm release와 두 Deployment rollout 성공 |
 | 알림 재현 | `make load` | `cpu-load` Job이 `Complete` |
 | 로컬 알림 수신 확인 | `make verify-alert` | receiver 로그에 `PodCpuSaturation` |
+| Chaos Toolkit 설치·정의 점검 | `make chaos-validate` | 두 실험이 Chaos Toolkit validation 통과 |
+| demo Pod 종료 복구 | `make chaos-demo` | Journal completed, `cpu-workload` 6/6 available |
+| Kafka consumer 종료 복구 | `make chaos-kafka-consumer` | Journal completed, k6 성공, consumer lag 0, DB 100만 고유 행 |
 
 ## GitOps 및 Argo CD
 
@@ -96,6 +99,49 @@ make alertmanager
 4. Workspace 관리 정책, 선택한 채널의 앱 설치 권한, Webhook 폐기 여부를 Slack에서 확인합니다.
 
 Webhook URL은 노출되면 새 URL을 만들고 `make enable-slack`을 다시 실행합니다.
+
+## Chaos 대시보드 판정
+
+두 dashboard는 왼쪽에서 오른쪽으로 **Traffic → Saturation → Latency → Errors**를 표시합니다. Chaos Journal과 rollout 상태를 보기 전에 이 네 신호로 영향과 복구 추세를 확인합니다.
+
+| 워크플로우 | Traffic | Saturation | Latency | Errors/결과 |
+| --- | --- | --- | --- | --- |
+| demo Pod 종료 | completed 요청률이 회복 | Pod CPU/limit이 80% target을 넘는지 | CPU-work p95/p99 | `rejected`, `cancelled`가 원인을 설명하는지 |
+| Kafka consumer 종료 | acknowledged 이벤트율이 유지 | consumer backlog가 0으로 회복 | E2E p95/p99가 안정화 | HTTP reject·publish failure는 0, `idempotently suppressed`는 멱등 처리 결과 |
+
+Grafana의 시계열은 scrape interval에 따라 늦게 보일 수 있으므로, 최종 Kafka 정합성 판정은 항상 `make benchmark-verify`의 100만 고유 행 및 consumer group lag 0 결과를 사용합니다.
+
+## Chaos Toolkit 실험 운영
+
+실험은 호스트 가상환경에서 실행되며 `rancher-desktop` context를 고정 사용합니다. `CONTEXT`를 다른 값으로 지정하면 Chaos target은 리소스를 만들기 전에 종료하므로, 부하 생성과 장애 주입이 서로 다른 클러스터로 향하지 않습니다. 실행 전에는 대상 서비스가 이미 정상인지 확인하고, 실행 결과는 `chaos/reports/`의 Journal과 Kubernetes 상태를 함께 판정합니다. Slack 수신은 보조 관측이며 성공 기준은 아닙니다.
+
+### cpu-workload Pod 종료
+
+```sh
+make deploy
+make chaos-demo
+kubectl --context rancher-desktop -n demo get deployment cpu-workload
+```
+
+성공은 Journal의 before/after steady-state가 모두 통과하고 `cpu-workload`의 available replica가 6인 경우입니다. 종료된 Pod 이름은 Journal method action에 기록됩니다.
+
+### 처리 중 Kafka consumer Pod 종료
+
+```sh
+make benchmark-deploy
+make chaos-kafka-consumer
+```
+
+이 명령은 기존 benchmark Job을 교체하므로 다른 benchmark 실행과 동시에 시작하지 않습니다. consumer Deployment와 ingest Deployment가 사전에 정상이어야 하며, 종료 대상은 consumer label selector로 제한됩니다. 완료 후 `make benchmark-verify`가 자동 실행되어 Kafka consumer group lag `0` 및 PostgreSQL의 100만 고유 event를 판정합니다.
+
+실험 도중 중단했다면 다음으로 controller 복구와 남은 load Job 상태를 확인합니다.
+
+```sh
+kubectl --context rancher-desktop -n kafka-benchmark rollout status deployment/consumer --timeout=3m
+kubectl --context rancher-desktop -n kafka-benchmark get job kafka-benchmark-load
+```
+
+Kafka와 PostgreSQL은 모두 단일 복제본이므로 이 실습의 Chaos Toolkit 케이스에서는 종료 대상으로 삼지 않습니다. 해당 장애는 가용성 복원력 통과가 아니라 의도된 서비스 단절을 관찰하는 별도 시나리오입니다.
 
 ### Alert가 firing하지 않는다
 
